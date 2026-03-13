@@ -130,6 +130,7 @@ class CovariateShiftAdaptor:
         self.config = config or CovariateShiftConfig()
 
         self._model = None
+        self._cat_indices_fit: list = []
         self._n_source: int = 0
         self._n_target: int = 0
         self._feature_cols: List[int] = []
@@ -232,6 +233,17 @@ class CovariateShiftAdaptor:
             for c in self.categorical_cols
             if c in self._feature_cols
         ]
+        self._cat_indices_fit = cat_indices
+
+        # CatBoost requires object dtype when categorical features are present.
+        # Convert the combined array: cat columns become string integers,
+        # continuous columns remain as floats (stored as objects).
+        if cat_indices:
+            X_all_cb = X_all.astype(object)
+            for ci in cat_indices:
+                X_all_cb[:, ci] = X_all_cb[:, ci].astype(float).astype(int).astype(str)
+        else:
+            X_all_cb = X_all
 
         clf = CatBoostClassifier(
             iterations=self.catboost_iterations,
@@ -242,7 +254,7 @@ class CovariateShiftAdaptor:
             verbose=False,
             cat_features=cat_indices if cat_indices else None,
         )
-        clf.fit(X_all, y_all)
+        clf.fit(X_all_cb, y_all)
         self._model = clf
         self._feature_importances = clf.get_feature_importance()
 
@@ -273,7 +285,13 @@ class CovariateShiftAdaptor:
     def _raw_importance_weights(self, X_feat: NDArray) -> NDArray[np.float64]:
         """Compute weights without clipping."""
         if self.method == "catboost":
-            proba = self._model.predict_proba(X_feat)  # (n, 2)
+            if self._cat_indices_fit:
+                X_cb = X_feat.astype(object)
+                for ci in self._cat_indices_fit:
+                    X_cb[:, ci] = X_cb[:, ci].astype(float).astype(int).astype(str)
+            else:
+                X_cb = X_feat
+            proba = self._model.predict_proba(X_cb)  # (n, 2)
             p_target = proba[:, 1]
             p_source = proba[:, 0]
             # Avoid division by zero

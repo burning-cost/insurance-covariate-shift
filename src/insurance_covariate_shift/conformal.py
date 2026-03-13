@@ -29,7 +29,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
-from sklearn.neural_network import MLPRegressor
+from sklearn.tree import DecisionTreeRegressor
 
 from .adaptor import CovariateShiftAdaptor
 
@@ -119,29 +119,33 @@ class _LRQRThreshold:
     which penalises h(x) from being large where the target concentrates.
     This ensures the threshold adapts to put coverage where it is needed
     on the target distribution.
+
+    We use a DecisionTreeRegressor rather than an MLP because:
+    - It accepts sample_weight natively in all sklearn versions
+    - It is faster and does not require hyperparameter tuning for a
+      shallow tree (max_depth=4)
+    - It is interpretable, which matters for governance
     """
 
     def __init__(
         self,
         alpha: float,
         lam: float = 1.0,
+        max_depth: int = 4,
+        random_state: int = 42,
+        # hidden_layer_sizes kept for API compatibility but unused
         hidden_layer_sizes: tuple = (64, 32),
         max_iter: int = 500,
-        random_state: int = 42,
     ) -> None:
         self.alpha = alpha
         self.lam = lam
+        self.max_depth = max_depth
+        self.random_state = random_state
         self.hidden_layer_sizes = hidden_layer_sizes
         self.max_iter = max_iter
-        self.random_state = random_state
-        self._mlp = MLPRegressor(
-            hidden_layer_sizes=hidden_layer_sizes,
-            activation="relu",
-            max_iter=max_iter,
+        self._tree = DecisionTreeRegressor(
+            max_depth=max_depth,
             random_state=random_state,
-            early_stopping=True,
-            n_iter_no_change=20,
-            tol=1e-4,
         )
         self._fitted = False
         self._base_quantile: float = 0.0
@@ -157,13 +161,12 @@ class _LRQRThreshold:
 
         The fitting proceeds in two steps:
         1. Compute a base quantile (importance-weighted) to initialise.
-        2. Fit an MLP to learn residual adjustments, with LR regularisation
-           embedded via sample weighting.
+        2. Fit a decision tree to learn residual adjustments, with LR
+           regularisation embedded via sample weighting.
 
-        The sample weights passed to the MLP are (1 + lambda * w_i), which
+        The sample weights passed to the tree are (1 + lambda * w_i), which
         increases the influence of high-weight (target-like) calibration
-        points. This implements the LR regularisation in closed form for
-        the regression loss.
+        points. This implements the LR regularisation for the regression loss.
         """
         X_cal = np.asarray(X_cal, dtype=float)
         scores = np.asarray(scores, dtype=float)
@@ -180,10 +183,12 @@ class _LRQRThreshold:
         sample_weights /= sample_weights.mean()
 
         try:
-            self._mlp.fit(X_cal, residuals, sample_weight=sample_weights)
+            self._tree.fit(X_cal, residuals, sample_weight=sample_weights)
             self._fitted = True
         except Exception as exc:  # pragma: no cover
-            warnings.warn(f"LR-QR MLP fitting failed: {exc}. Falling back to weighted quantile.")
+            warnings.warn(
+                f"LR-QR threshold fitting failed: {exc}. Falling back to weighted quantile."
+            )
             self._fitted = False
 
         return self
@@ -198,7 +203,7 @@ class _LRQRThreshold:
         """
         if not self._fitted:
             return np.full(len(X), self._base_quantile)
-        residuals = self._mlp.predict(X.astype(float))
+        residuals = self._tree.predict(X.astype(float))
         return self._base_quantile + residuals
 
 
@@ -234,7 +239,8 @@ class ShiftRobustConformal:
         Regularisation strength for LR-QR. Higher values push more coverage
         to where the target concentrates. Default 1.0.
     lrqr_hidden_sizes : tuple
-        Hidden layer sizes for the LR-QR threshold network. Default (64, 32).
+        Kept for API compatibility. Not used in the current DecisionTree
+        implementation of LR-QR.
 
     Attributes
     ----------
