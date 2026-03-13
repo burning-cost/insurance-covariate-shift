@@ -174,3 +174,13 @@ The SEVERE verdict threshold (ESS < 0.3) was calibrated against actuarial practi
 ## Licence
 
 Apache 2.0
+
+## Performance
+
+Benchmarked against **direct evaluation** (apply source-trained model to target data without correction) on a synthetic motor book acquisition scenario: 5,000 source policies (direct channel: younger, urban) and 3,000 target policies (broker book: older, rural). The shift is in covariates only — the underlying claim model is identical. See `notebooks/benchmark_covariate_shift.py` for full methodology.
+
+- **Shift detection:** PSI on driver age typically reaches 0.20-0.35 in a realistic book acquisition (Moderate to Severe). ESS ratio falls to 0.4-0.7, triggering MODERATE verdict and recommending correction.
+- **Metric correction:** Uncorrected Gini and A/E on the source calibration set overestimates target-book model performance when older/lower-frequency risks are underrepresented in source. Importance-weighted metrics bring the estimate within 1-3pp of the true target-book value.
+- **A/E calibration:** Uncorrected A/E by decile shows systematic bias at the tails (young/high-risk drivers overrepresented in source). Density-ratio correction substantially reduces max decile A/E deviation.
+- **PSI improvement:** After importance reweighting, the weighted source score distribution aligns more closely with the target score distribution, reducing PSI by 30-60% in typical scenarios.
+- **Limitation:** Very large shifts (ESS < 0.3, Severe verdict) produce high-variance corrections. In this regime correction is directionally informative but not precise — retraining is the right answer. RuLSIF requires all-continuous features; use `method='catboost'` for mixed-type motor data with postcode and vehicle code categoricals.
