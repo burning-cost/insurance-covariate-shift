@@ -29,11 +29,25 @@ pip install insurance-covariate-shift
 
 ```python
 import numpy as np
+from sklearn.linear_model import PoissonRegressor
 from insurance_covariate_shift import CovariateShiftAdaptor, ShiftRobustConformal
+
+rng = np.random.default_rng(42)
+# Synthetic motor book: source = direct channel, target = acquired broker
+# Features: age, ncb, vehicle_age, postcode (encoded as int)
+X_source = rng.normal([35, 5, 4, 10], [8, 3, 2, 5], (2000, 4))
+X_target = rng.normal([45, 7, 6, 15], [9, 3, 2, 5], (1000, 4))
+
+# Fit a simple frequency model on the source book
+y_source = rng.poisson(0.08 + 0.001 * X_source[:, 0], size=2000)
+freq_model = PoissonRegressor().fit(X_source, y_source)
+
+# Split source into training and calibration sets
+X_cal, y_cal = X_source[:500], y_source[:500]
 
 # Two books: source (training distribution) and target (deployment)
 # No labels needed for the target — this is unsupervised adaptation
-adaptor = CovariateShiftAdaptor(method="catboost")
+adaptor = CovariateShiftAdaptor(method="rulsif")
 adaptor.fit(X_source, X_target, feature_names=["age", "ncb", "vehicle_age", "postcode"])
 
 # How bad is the shift?
@@ -140,9 +154,17 @@ After an M&A transaction, before you retrain, you want to know how the existing 
 
 ```python
 from sklearn.metrics import mean_absolute_error
+from sklearn.linear_model import PoissonRegressor
 import numpy as np
+from insurance_covariate_shift import CovariateShiftAdaptor
 
-adaptor = CovariateShiftAdaptor(method="catboost")
+rng = np.random.default_rng(0)
+X_source_cal = rng.normal([35, 5, 4], [8, 3, 2], (1000, 3))
+X_target_unlabelled = rng.normal([45, 7, 6], [9, 3, 2], (600, 3))
+y_source_cal = rng.poisson(0.08 + 0.001 * X_source_cal[:, 0])
+model = PoissonRegressor().fit(X_source_cal, y_source_cal)
+
+adaptor = CovariateShiftAdaptor(method="rulsif")
 adaptor.fit(X_source_cal, X_target_unlabelled)
 weights = adaptor.importance_weights(X_source_cal)
 
