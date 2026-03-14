@@ -193,6 +193,15 @@ The SEVERE verdict threshold (ESS < 0.3) was calibrated against actuarial practi
 - Yamada, M., Suzuki, T., Kanamori, T., Hachiya, H., & Sugiyama, M. (2013). Relative Density-Ratio Estimation for Robust Distribution Comparison. *Neural Computation*, 25(5).
 - Marandon, A., Mary, L., & Roquain, E. (2025). Conformal Inference under High-Dimensional Covariate Shifts via Likelihood-Ratio Regularization. arXiv:2502.13030.
 
+
+## Related Libraries
+
+| Library | What it does |
+|---------|-------------|
+| [insurance-monitoring](https://github.com/burning-cost/insurance-monitoring) | Model monitoring with PSI, A/E ratios, and Gini drift — identifies when covariate shift requires model adaptation |
+| [insurance-thin-data](https://github.com/burning-cost/insurance-thin-data) | Transfer learning for sparse segments — complements shift correction when the target domain has limited training data |
+| [insurance-cv](https://github.com/burning-cost/insurance-cv) | Temporal cross-validation — proper walk-forward splits reduce the impact of covariate shift in evaluation |
+
 ## Licence
 
 Apache 2.0
