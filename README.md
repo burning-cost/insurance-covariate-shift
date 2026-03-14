@@ -1,5 +1,11 @@
 # insurance-covariate-shift
 
+[![PyPI](https://img.shields.io/pypi/v/insurance-covariate-shift)](https://pypi.org/project/insurance-covariate-shift/)
+[![Python](https://img.shields.io/pypi/pyversions/insurance-covariate-shift)](https://pypi.org/project/insurance-covariate-shift/)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
+[![License](https://img.shields.io/badge/license-BSD--3-blue)]()
+
+
 Density ratio correction for insurance pricing model portability across different book distributions.
 
 ## What problem does this solve for a UK pricing actuary?
