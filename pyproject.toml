@@ -19,6 +19,8 @@ keywords = [
     "conformal-prediction",
     "pricing",
     "actuarial",
+    "UK",
+    "personal lines",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -48,6 +50,8 @@ dev = [
 [project.urls]
 Homepage = "https://github.com/burning-cost/insurance-covariate-shift"
 Repository = "https://github.com/burning-cost/insurance-covariate-shift"
+"Bug Tracker" = "https://github.com/burning-cost/insurance-covariate-shift/issues"
+Documentation = "https://github.com/burning-cost/insurance-covariate-shift#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/insurance_covariate_shift"]
