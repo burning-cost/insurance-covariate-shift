@@ -81,7 +81,11 @@ def _weighted_quantile(
         return float(np.quantile(scores, level))
     w_norm = w / w_sum * n
 
-    # Append +inf with weight equal to mean weight (test point proxy)
+    # Append +inf with the test-point weight.
+    # TODO (P1-2): accept test_weight as a parameter so callers can pass the
+    # actual w(x_{n+1}) for the Tibshirani (2019) guarantee. Currently we use
+    # the mean calibration weight as a proxy, which is conservative but does
+    # not satisfy the heterogeneous-weights guarantee.
     inf_weight = float(w_norm.mean())
     all_scores = np.append(scores, np.inf)
     all_weights = np.append(w_norm, inf_weight)
@@ -403,6 +407,16 @@ class ShiftRobustConformal:
         -------
         lower : array of shape (n_test,)
         upper : array of shape (n_test,)
+
+        Notes
+        -----
+        The 'weighted' method uses the mean calibration weight as a proxy for
+        the test-point weight in the +infinity mass of the weighted quantile.
+        This does **not** satisfy the Tibshirani et al. (2019) finite-sample
+        guarantee for heterogeneous weights. To get the full guarantee you
+        need to pass the actual w(x_{n+1}) for each test point — see the
+        TODO in _weighted_quantile. Coverage is still approximately valid
+        in practice when the test weights are close to the calibration mean.
         """
         if not self.calibrated_:
             raise RuntimeError("Call calibrate() before predict_interval().")

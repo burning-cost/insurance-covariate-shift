@@ -129,10 +129,11 @@ class ShiftDiagnosticReport:
         true ratio; in practice it gives a lower bound.
         """
         w = self._weights
-        w_pos = np.maximum(w, 1e-12)
-        # Normalise weights to sum to 1 before computing KL
-        w_norm = w_pos / w_pos.sum()
-        kl = float(np.sum(w_norm * np.log(w_norm * len(w_norm))))
+        if len(w) == 0:
+            return 0.0
+        # KL(p_t || p_s) = E_s[w * log w] where w = p_t/p_s.
+        # Sample mean over source observations using the raw (unnormalised) weights.
+        kl = float(np.mean(w * np.log(np.clip(w, 1e-10, None))))
         return max(kl, 0.0)
 
     # ------------------------------------------------------------------
@@ -167,8 +168,14 @@ class ShiftDiagnosticReport:
 
     def fca_sup153_summary(self) -> str:
         """
-        Generate a plain-text summary suitable for inclusion in an FCA
-        SUP 15.3 notification or internal pricing governance documentation.
+        Generate a plain-text summary suitable for inclusion in pricing
+        governance documentation under PS21/5 and Consumer Duty FG22/5.
+
+        Note: the method name retains the legacy 'fca_sup153_summary' name
+        for API compatibility. The correct regulatory references are PS21/5
+        (General Insurance Pricing Practices) and FG22/5 (Consumer Duty).
+        SUP 15.3 covers material change notifications and is not the primary
+        reference for pricing fairness documentation.
 
         The output follows the structure recommended in the FCA's pricing
         practices guidance: state the issue, quantify it, and describe the

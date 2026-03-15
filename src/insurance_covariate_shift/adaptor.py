@@ -138,6 +138,8 @@ class CovariateShiftAdaptor:
         self.clip_threshold_: float = np.inf
         self.is_fitted_: bool = False
 
+        self._mean_source_exposure: float = 1.0
+
         # Stored for diagnostics
         self._X_source_fit: Optional[NDArray[np.float64]] = None
         self._X_target_fit: Optional[NDArray[np.float64]] = None
@@ -191,6 +193,13 @@ class CovariateShiftAdaptor:
 
         Xs = X_source[:, self._feature_cols]
         Xt = X_target[:, self._feature_cols]
+
+        # Store mean source exposure so importance_weights() is not batch-dependent
+        if self.exposure_col is not None:
+            exp_col = X_source[:, self.exposure_col].astype(float)
+            self._mean_source_exposure = float(exp_col.mean()) or 1.0
+        else:
+            self._mean_source_exposure = 1.0
 
         if self.method == "catboost":
             self._fit_catboost(Xs, Xt)
@@ -296,7 +305,7 @@ class CovariateShiftAdaptor:
             p_source = proba[:, 0]
             # Avoid division by zero
             p_source = np.maximum(p_source, 1e-9)
-            ratio = self._n_target / self._n_source
+            ratio = self._n_source / self._n_target
             return ratio * p_target / p_source
         else:
             return self._model.predict(X_feat.astype(float))
@@ -334,7 +343,7 @@ class CovariateShiftAdaptor:
         # Apply exposure scaling if an exposure column was specified
         if self.exposure_col is not None:
             exp = X[:, self.exposure_col].astype(float)
-            raw = raw * exp / (exp.mean() + 1e-12)
+            raw = raw * exp / (self._mean_source_exposure + 1e-12)
 
         # Clip
         clipped = np.minimum(raw, self.clip_threshold_)
@@ -353,7 +362,7 @@ class CovariateShiftAdaptor:
         Produce a :class:`ShiftDiagnosticReport` for the fitted books.
 
         The report contains ESS ratio, KL divergence, per-feature driver
-        analysis, and a plain-text FCA SUP 15.3 compatible summary.
+        analysis, and a plain-text regulatory summary (PS21/5, Consumer Duty FG22/5).
 
         Parameters
         ----------

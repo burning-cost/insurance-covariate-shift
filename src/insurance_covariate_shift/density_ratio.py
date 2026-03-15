@@ -220,9 +220,13 @@ class RuLSIF:
     ) -> float:
         """
         Pearson divergence estimate (objective value, higher = more distinct).
+
+        The RuLSIF objective is: (1/2) * E_target[r(x)^2] - E_source[r(x)].
+        The first term uses target predictions; the second uses source.
         """
+        w_t = self.predict(X_target)
         w_s = self.predict(X_source)
-        return float(0.5 * np.mean(w_s ** 2) - np.mean(w_s))
+        return float(0.5 * np.mean(w_t ** 2) - np.mean(w_s))
 
 
 class KLIEP:
