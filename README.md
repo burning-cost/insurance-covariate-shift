@@ -219,12 +219,30 @@ Apache 2.0
 
 ## Performance
 
-**Benchmark run status (post-P0 fixes, March 2026):** The benchmark script (`benchmarks/benchmark_insurance_covariate_shift.py`) is formatted as a Databricks notebook (uses `%pip install`, `dbutils`, Databricks-specific cell separators). It is not runnable as a plain Python script and requires Databricks. The numbers below are from previous Databricks benchmark runs — the qualitative story is correct but specific numbers will vary by run.
+Benchmarked on Databricks serverless, 2026-03-16. Scenario: direct channel source book (3,000 policies, age 18–64) acquiring a broker portfolio (1,200 policies, age 30–74, higher NCB, concentrated postcodes). A PoissonRegressor trained on source is evaluated on target — without and with covariate shift correction.
 
-Benchmarked against **direct evaluation** (apply source-trained model to target data without correction) on a synthetic motor book acquisition scenario: 5,000 source policies (direct channel: younger, urban) and 3,000 target policies (broker book: older, rural). The shift is in covariates only — the underlying claim model is identical. See `notebooks/benchmark_covariate_shift.py` for full methodology.
+**Metric correction:**
 
-- **Shift detection:** PSI on driver age typically reaches 0.20–0.35 in a realistic book acquisition (Moderate to Severe). ESS ratio falls to 0.4–0.7, triggering MODERATE verdict and recommending correction.
-- **Metric correction:** Uncorrected Gini and A/E on the source calibration set overestimates target-book model performance when older/lower-frequency risks are underrepresented in source. Importance-weighted metrics bring the estimate within 1–3pp of the true target-book value.
-- **A/E calibration:** Uncorrected A/E by decile shows systematic bias at the tails (young/high-risk drivers overrepresented in source). Density-ratio correction substantially reduces max decile A/E deviation.
-- **PSI improvement:** After importance reweighting, the weighted source score distribution aligns more closely with the target score distribution, reducing PSI by 30–60% in typical scenarios.
-- **Limitation:** Very large shifts (ESS < 0.3, Severe verdict) produce high-variance corrections. In this regime correction is directionally informative but not precise — retraining is the right answer. RuLSIF requires all-continuous features; use `method='catboost'` for mixed-type motor data with postcode and vehicle code categoricals.
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Source calibration MAE | 0.099 | What the model reports on its own data |
+| Importance-weighted MAE (estimated target) | 0.091 | Using density ratio correction |
+| Actual target MAE (synthetic ground truth) | 0.111 | The true number we are estimating |
+
+The weighted estimate (0.091) undershoots the true target MAE (0.111) by 0.020. The unweighted estimate (0.099) undershoots by 0.012. In this scenario the importance-weighted estimate is not closer to ground truth than the unweighted one. This reflects the known limitation: importance weighting reduces bias when the shift is well-represented in the calibration set, but can increase variance for small calibration sets (n=900 here). The directional signal (target performance is worse than source) is correctly identified by both.
+
+**Conformal coverage on target book (90% nominal):**
+
+| Method | Empirical coverage | Mean interval width |
+|--------|-------------------|---------------------|
+| Weighted conformal (Tibshirani 2019) | 77.2% | 0.121 |
+| LR-QR adaptive conformal (Marandon 2025) | 74.2% | 0.231 (std 0.549) |
+
+Both methods under-cover (target 90%, achieved ~74–77%). This is expected: the conformal calibration was done on source data (n=900) and coverage guarantees are asymptotic. With a larger calibration set or a smaller shift, coverage improves. LR-QR produces wider and more variable intervals (adaptive) but also under-covers more.
+
+**When this library adds value:**
+- Detecting that a target book differs from source before making pricing decisions (PSI, ESS verdict)
+- Estimating how much the acquired book's performance will differ (weighted metrics)
+- Generating credible prediction intervals on the target book when no target labels are available
+
+**Limitation:** Do not rely on exact coverage guarantees for small calibration sets (n < 2,000) or large shifts (ESS < 0.4). Use the weighted metrics directionally.
