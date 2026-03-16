@@ -14,10 +14,11 @@ This library provides:
 
 - :class:`CovariateShiftAdaptor` — estimate p_target(x) / p_source(x) using
   CatBoost (handles postcodes and vehicle codes natively), RuLSIF, or KLIEP.
-- :class:`ShiftRobustConformal` — conformal prediction intervals with
-  finite-sample coverage guarantee on the target distribution.
-- :class:`ShiftDiagnosticReport` — FCA SUP 15.3 compatible documentation
-  of the shift magnitude and drivers.
+- :class:`ShiftRobustConformal` — conformal prediction intervals corrected
+  for covariate shift. Coverage improves with calibration set size; see class
+  docstring for implementation limitations.
+- :class:`ShiftDiagnosticReport` — PS21/5 and Consumer Duty FG22/5 compatible
+  documentation of the shift magnitude and drivers.
 
 Quick start
 -----------
@@ -41,7 +42,7 @@ from .density_ratio import KLIEP, RuLSIF
 from .report import ShiftDiagnosticReport
 from ._types import CovariateShiftConfig, ShiftVerdict
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 __all__ = [
     "CovariateShiftAdaptor",
     "ShiftRobustConformal",

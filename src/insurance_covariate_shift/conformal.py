@@ -7,7 +7,10 @@ This module implements two corrections:
 
 1. **Weighted** (Tibshirani et al., 2019): replace the uniform empirical
    quantile with an importance-weighted quantile. Provably valid under
-   covariate shift given correct density ratio estimation.
+   covariate shift given correct density ratio estimation and per-test-point
+   weights. The current implementation uses mean calibration weights as a
+   proxy — approximately valid but does not carry the full finite-sample
+   guarantee for heterogeneous test weights.
 
 2. **LR-QR** (arXiv:2502.13030): learn a covariate-dependent threshold
    h(x) that adapts the interval width per risk. The likelihood-ratio
@@ -82,10 +85,11 @@ def _weighted_quantile(
     w_norm = w / w_sum * n
 
     # Append +inf with the test-point weight.
-    # TODO (P1-2): accept test_weight as a parameter so callers can pass the
-    # actual w(x_{n+1}) for the Tibshirani (2019) guarantee. Currently we use
-    # the mean calibration weight as a proxy, which is conservative but does
-    # not satisfy the heterogeneous-weights guarantee.
+    # The Tibshirani (2019) guarantee requires the actual w(x_{n+1}) for
+    # each test point. Currently we use the mean calibration weight as a
+    # proxy, which is an approximation valid when test weights are close to
+    # the calibration mean but does not satisfy the heterogeneous-weights
+    # finite-sample guarantee.
     inf_weight = float(w_norm.mean())
     all_scores = np.append(scores, np.inf)
     all_weights = np.append(w_norm, inf_weight)
@@ -213,11 +217,19 @@ class _LRQRThreshold:
 
 class ShiftRobustConformal:
     """
-    Conformal prediction intervals valid on the target distribution.
+    Conformal prediction intervals corrected for covariate shift.
 
     This class wraps any point-prediction model and adds distribution-shift
-    aware uncertainty quantification. The key property is finite-sample
-    marginal coverage on the *target* distribution, not just the source.
+    aware uncertainty quantification. It corrects for covariate shift using
+    importance weighting, improving coverage on the *target* distribution
+    compared to standard conformal prediction.
+
+    Implementation note: the current 'weighted' method uses the mean
+    calibration weight as a proxy for the per-test-point weight. This is an
+    approximation that does not satisfy the Tibshirani (2019) finite-sample
+    guarantee for heterogeneous weights. Coverage is approximately valid
+    when test weights are close to the calibration mean. See the Performance
+    section in the README for observed coverage on a realistic scenario.
 
     Parameters
     ----------
@@ -414,9 +426,9 @@ class ShiftRobustConformal:
         the test-point weight in the +infinity mass of the weighted quantile.
         This does **not** satisfy the Tibshirani et al. (2019) finite-sample
         guarantee for heterogeneous weights. To get the full guarantee you
-        need to pass the actual w(x_{n+1}) for each test point — see the
-        TODO in _weighted_quantile. Coverage is still approximately valid
-        in practice when the test weights are close to the calibration mean.
+        need to pass the actual w(x_{n+1}) for each test point. Coverage is
+        still approximately valid in practice when the test weights are close
+        to the calibration mean.
         """
         if not self.calibrated_:
             raise RuntimeError("Call calibrate() before predict_interval().")

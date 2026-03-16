@@ -22,8 +22,8 @@ The naive fix is to retrain. But retraining takes months of data collection, val
 This library answers both questions. It estimates the density ratio p_target(x) / p_source(x) — how much more (or less) likely each risk profile is in the new book compared to the training book — and uses that ratio to:
 
 - Reweight evaluation metrics so they reflect performance on the target book
-- Produce conformal prediction intervals with a finite-sample coverage guarantee on the target distribution
-- Generate a plain-text diagnostic report formatted for FCA SUP 15.3 filings and pricing governance documentation
+- Produce conformal prediction intervals that correct for distribution shift (see coverage limitations below)
+- Generate a plain-text diagnostic report formatted for PS21/5 and Consumer Duty FG22/5 pricing governance documentation
 
 ## Installation
 
@@ -61,7 +61,7 @@ report = adaptor.shift_diagnostic(source_label="Direct", target_label="Acquired 
 print(report.fca_sup153_summary())
 # Verdict: MODERATE
 # ESS ratio: 0.54
-# Main drivers: postcode (41%), age (31%), ncb (18%)
+# Main drivers: postcode (41%), age (31%), ncb (18%), vehicle_age (10%)
 
 # Get importance weights for reweighting source-book metrics
 weights = adaptor.importance_weights(X_source)
@@ -130,7 +130,7 @@ A SEVERE verdict means you should retrain before deploying on the target book. A
 
 ### ShiftRobustConformal
 
-Conformal prediction intervals guaranteed to achieve the target coverage level on the *target distribution*, not just the source.
+Conformal prediction intervals that correct for distribution shift between source and target books.
 
 ```python
 from insurance_covariate_shift import ShiftRobustConformal
@@ -151,8 +151,10 @@ print(cp.empirical_coverage(X_test, y_test))  # Should be ~0.90
 
 **Methods:**
 
-- `weighted`: importance-weighted empirical quantile (Tibshirani et al., 2019). Single global threshold, simple to understand, provably valid under covariate shift. Recommended default.
+- `weighted`: importance-weighted empirical quantile (Tibshirani et al., 2019). Single global threshold, simple to understand. The Tibshirani (2019) finite-sample guarantee requires passing the exact test-point weight w(x_{n+1}); the current implementation uses the mean calibration weight as a proxy, which is an approximation valid when test weights are close to the calibration mean but does not provide the full heterogeneous-weight guarantee.
 - `lrqr`: LR-QR (Marandon et al., arXiv:2502.13030). Learns a covariate-dependent threshold h(x) via likelihood-ratio regularised quantile regression. Produces narrower intervals for low-risk profiles and wider for high-risk. Requires n_calibration >= 300. This is the first Python implementation of this algorithm.
+
+**Coverage note:** Both methods provide coverage that improves with calibration set size and degrades under large shifts. See the Performance section for observed coverage in a realistic scenario. Do not rely on exact finite-sample guarantees for small calibration sets (n < 2,000) or large shifts (ESS < 0.4).
 
 ## Realistic usage: weighted model evaluation
 
@@ -188,7 +190,9 @@ print(f"Target MAE estimate: {mae_target_estimate:.4f}")
 
 ## FCA context
 
-Under FCA PRIN 2A.2 and SUP 15.3, insurers must notify the FCA of material changes to their pricing methodology. Using a model trained on a different book distribution without adjustment could constitute such a change. The `fca_sup153_summary()` output is designed to provide the factual basis for an internal governance note or a regulatory notification.
+Under PS21/5 (General Insurance Pricing Practices) and Consumer Duty FG22/5, insurers must demonstrate that pricing models are fair and that material changes are appropriately governed. Using a model trained on a different book distribution without adjustment is a material change that should be captured in your model change policy. The `fca_sup153_summary()` output is designed to provide the factual basis for an internal governance note.
+
+Note: the method is named `fca_sup153_summary` for backwards API compatibility. SUP 15.3 covers material change notifications; the primary references for pricing fairness governance are PS21/5 and FG22/5. The actual notification trigger is the materiality threshold in your firm's own model change policy, not a fixed regulatory rule.
 
 The SEVERE verdict threshold (ESS < 0.3) was calibrated against actuarial practice: if less than 30% of your source sample is effectively contributing to target-distribution estimates, you are extrapolating more than interpolating, and retraining is the right answer.
 

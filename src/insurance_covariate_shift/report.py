@@ -1,5 +1,5 @@
 """
-ShiftDiagnosticReport — FCA SUP 15.3 compatible documentation of distribution shift.
+ShiftDiagnosticReport — pricing governance documentation of distribution shift.
 
 The report is the artefact that goes to the pricing governance committee and,
 in severe cases, into the regulatory filing. It should answer three questions:
@@ -11,6 +11,7 @@ in severe cases, into the regulatory filing. It should answer three questions:
 from __future__ import annotations
 
 import textwrap
+import warnings
 from datetime import date
 from typing import Optional, Sequence
 
@@ -125,15 +126,27 @@ class ShiftDiagnosticReport:
         Estimate KL(target || source) from the weights.
 
         Uses the identity: KL(p_t || p_s) = E_s[w(x) * log w(x)]
-        where w(x) = p_t(x)/p_s(x). This is only valid when w is the
-        true ratio; in practice it gives a lower bound.
+        where w(x) = p_t(x)/p_s(x). The identity requires E_s[w] = 1
+        (normalised weights). We normalise before computing to ensure
+        validity; a UserWarning is issued if the raw weights deviate
+        substantially from normalisation.
         """
         w = self._weights
         if len(w) == 0:
             return 0.0
-        # KL(p_t || p_s) = E_s[w * log w] where w = p_t/p_s.
-        # Sample mean over source observations using the raw (unnormalised) weights.
-        kl = float(np.mean(w * np.log(np.clip(w, 1e-10, None))))
+        w_mean = float(w.mean())
+        if abs(w_mean - 1.0) > 0.1:
+            warnings.warn(
+                f"KL divergence estimate: weights have mean {w_mean:.3f} (expected ~1.0). "
+                "The KL identity requires E_source[w] = 1; normalising before computing. "
+                "This can happen with RuLSIF or CatBoost weights which are not guaranteed "
+                "to be normalised. The KL estimate may be less accurate.",
+                UserWarning,
+                stacklevel=3,
+            )
+        # Normalise to satisfy E_s[w] = 1 before applying the identity
+        w_norm = w / (w_mean + 1e-300)
+        kl = float(np.mean(w_norm * np.log(np.clip(w_norm, 1e-10, None))))
         return max(kl, 0.0)
 
     # ------------------------------------------------------------------
@@ -175,7 +188,9 @@ class ShiftDiagnosticReport:
         for API compatibility. The correct regulatory references are PS21/5
         (General Insurance Pricing Practices) and FG22/5 (Consumer Duty).
         SUP 15.3 covers material change notifications and is not the primary
-        reference for pricing fairness documentation.
+        reference for pricing fairness documentation. The actual notification
+        trigger is the materiality threshold in the firm's own model change
+        policy, not a fixed regulatory rule.
 
         The output follows the structure recommended in the FCA's pricing
         practices guidance: state the issue, quantify it, and describe the
@@ -225,7 +240,7 @@ class ShiftDiagnosticReport:
             -------
             Effective Sample Size ratio : {self.ess_ratio:.3f}
               (1.0 = no shift, 0.0 = complete overlap failure)
-            KL divergence (target || source) : {self.kl_divergence:.4f} nats
+            KL divergence (target || source) : {self.kl_divergence:.2f} nats (approximate)
 
             Main drivers of shift
             ---------------------
@@ -239,8 +254,9 @@ class ShiftDiagnosticReport:
             -----------
             Density ratio estimated using insurance-covariate-shift v0.1.0.
             ESS ratio = (sum w)^2 / (n * sum w^2). KL estimated via
-            E_source[w * log w]. Thresholds: SEVERE if ESS < 0.30 or
-            KL > 0.50 nats; MODERATE if ESS < 0.60 or KL > 0.10 nats.
+            E_source[w * log w] with normalised weights. Thresholds: SEVERE
+            if ESS < 0.30 or KL > 0.50 nats; MODERATE if ESS < 0.60 or
+            KL > 0.10 nats.
         """)
         return summary
 
