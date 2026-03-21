@@ -33,7 +33,7 @@ The shift diagnostic is the primary use case. It takes ~10 seconds and answers "
 ## Installation
 
 ```bash
-pip install insurance-covariate-shift
+uv add insurance-covariate-shift
 ```
 
 > Questions or feedback? Start a [Discussion](https://github.com/burning-cost/insurance-covariate-shift/discussions). Found it useful? A star helps others find it.
