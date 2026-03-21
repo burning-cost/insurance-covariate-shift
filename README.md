@@ -8,6 +8,8 @@
 
 Density ratio correction for insurance pricing model portability across different book distributions.
 
+**Blog post:** [Correcting for Covariate Shift When You Acquire an MGA Book](https://burning-cost.github.io/2026/03/13/insurance-covariate-shift/)
+
 ## What problem does this solve for a UK pricing actuary?
 
 You trained a motor frequency model on your direct channel book. It validated well, it priced consistently, and the governance committee signed it off. Then your insurer acquired a broker portfolio. Or your business mix shifted from aggregator to price comparison. Or you're standing up a new brand targeting a different demographic.
@@ -30,6 +32,8 @@ This library answers both questions. It estimates the density ratio p_target(x) 
 ```bash
 pip install insurance-covariate-shift
 ```
+
+> 💬 Questions or feedback? Start a [Discussion](https://github.com/burning-cost/insurance-covariate-shift/discussions). Found it useful? A ⭐ helps others find it.
 
 ## Quick start
 
