@@ -197,7 +197,8 @@ class CovariateShiftAdaptor:
         # Store mean source exposure so importance_weights() is not batch-dependent
         if self.exposure_col is not None:
             exp_col = X_source[:, self.exposure_col].astype(float)
-            self._mean_source_exposure = float(exp_col.mean()) or 1.0
+            mean_exp = float(np.nanmean(exp_col))
+            self._mean_source_exposure = mean_exp if np.isfinite(mean_exp) and mean_exp > 0 else 1.0
         else:
             self._mean_source_exposure = 1.0
 

@@ -220,3 +220,76 @@ class TestShiftDiagnosticFromAdaptor:
         report = a.shift_diagnostic()
         # With extreme shift, ESS should be very low
         assert report.ess_ratio < 0.6
+
+
+class TestExposureNaNHandling:
+    """P1: exposure_col mean calculation must be NaN-safe."""
+
+    def test_nan_exposure_falls_back_to_one(self):
+        """When exposure column contains NaN, mean should fall back to 1.0."""
+        rng = np.random.default_rng(42)
+        n_source = 200
+        n_target = 150
+
+        # Build source with NaN in exposure column
+        X_feat_s = rng.normal(0, 1, (n_source, 3))
+        exp_s = rng.uniform(0.5, 1.5, (n_source, 1))
+        exp_s[0] = np.nan   # inject a NaN
+        exp_s[5] = np.nan
+        X_source = np.hstack([X_feat_s, exp_s])
+
+        X_feat_t = rng.normal(0.5, 1, (n_target, 3))
+        exp_t = rng.uniform(0.5, 1.5, (n_target, 1))
+        X_target = np.hstack([X_feat_t, exp_t])
+
+        a = CovariateShiftAdaptor(method="rulsif", exposure_col=3)
+        a.fit(X_source, X_target)
+
+        # _mean_source_exposure should be finite and positive
+        assert np.isfinite(a._mean_source_exposure)
+        assert a._mean_source_exposure > 0
+
+    def test_all_nan_exposure_falls_back_to_one(self):
+        """All-NaN exposure column must fall back gracefully to 1.0."""
+        rng = np.random.default_rng(10)
+        X_feat_s = rng.normal(0, 1, (100, 2))
+        exp_s = np.full((100, 1), np.nan)
+        X_source = np.hstack([X_feat_s, exp_s])
+
+        X_feat_t = rng.normal(0.5, 1, (80, 2))
+        exp_t = np.ones((80, 1))
+        X_target = np.hstack([X_feat_t, exp_t])
+
+        a = CovariateShiftAdaptor(method="rulsif", exposure_col=2)
+        a.fit(X_source, X_target)
+        assert a._mean_source_exposure == pytest.approx(1.0)
+
+    def test_zero_mean_exposure_falls_back_to_one(self):
+        """Zero mean exposure (pathological) should fall back to 1.0."""
+        rng = np.random.default_rng(20)
+        X_feat_s = rng.normal(0, 1, (100, 2))
+        exp_s = np.zeros((100, 1))  # all-zero exposure -> mean = 0
+        X_source = np.hstack([X_feat_s, exp_s])
+
+        X_feat_t = rng.normal(0.5, 1, (80, 2))
+        exp_t = np.ones((80, 1))
+        X_target = np.hstack([X_feat_t, exp_t])
+
+        a = CovariateShiftAdaptor(method="rulsif", exposure_col=2)
+        a.fit(X_source, X_target)
+        assert a._mean_source_exposure == pytest.approx(1.0)
+
+    def test_normal_exposure_uses_actual_mean(self):
+        """Valid exposure without NaN should use the actual mean, not fall back."""
+        rng = np.random.default_rng(30)
+        X_feat_s = rng.normal(0, 1, (200, 3))
+        exp_s = np.full((200, 1), 0.5)  # uniform exposure of 0.5
+        X_source = np.hstack([X_feat_s, exp_s])
+
+        X_feat_t = rng.normal(0.5, 1, (150, 3))
+        exp_t = np.ones((150, 1))
+        X_target = np.hstack([X_feat_t, exp_t])
+
+        a = CovariateShiftAdaptor(method="rulsif", exposure_col=3)
+        a.fit(X_source, X_target)
+        assert a._mean_source_exposure == pytest.approx(0.5, rel=1e-6)
