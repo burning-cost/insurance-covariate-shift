@@ -42,7 +42,12 @@ from .density_ratio import KLIEP, RuLSIF
 from .report import ShiftDiagnosticReport
 from ._types import CovariateShiftConfig, ShiftVerdict
 
-__version__ = "0.1.2"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("insurance-covariate-shift")
+except PackageNotFoundError:
+    __version__ = "0.0.0"  # not installed
 __all__ = [
     "CovariateShiftAdaptor",
     "ShiftRobustConformal",
